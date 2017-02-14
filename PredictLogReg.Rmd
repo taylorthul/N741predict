@@ -1,0 +1,307 @@
+---
+title: "Prediction & Logistic Regression"
+author: "Melinda K. Higgins, PhD."
+date: "February 13, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Logistic Regression Example
+
+The following code and data analysis example comes from Chapter 7, section 7.2 on logistic regression in the "Practical Data Science with R" book by Nina Zumel and John Mount (aka, textbook for this course). 
+
+## Dataset
+
+The dataset we'll use is the "CDC" data available from the book Github repository at [https://github.com/WinVector/zmPDSwR/tree/master/CDC](https://github.com/WinVector/zmPDSwR/tree/master/CDC). We'll use the RData file "NatalRiskData.rData" which has 26313 observations and 15 variables. In this dataset, there is a variable "ORIGRANDGROUP" which has uniformly distributed random numbers ranging from 0 to 10. The code chunk below divides the dataset into a "test" and a "training" dataset based on these random numbers: if <= 0.5, the observation is assigned to the "train" dataset and if > 0.5, the observation is assigned to the "test" dataset.
+
+```{r}
+load("NatalRiskData.rData")
+train <- sdata[sdata$ORIGRANDGROUP <= 5,]
+test <- sdata[sdata$ORIGRANDGROUP > 5,]
+```
+
+The variables included that we will use in our logistic regression model are provided in the following table:
+
+| Variable   | Type    | Description                            |
+|:-----------|:--------|:---------------------------------------|
+| **DEMOGRAPHICS** |     |     |
+| "PWGT" | Numeric | Mother's prepregnancy weight |
+| "UPREVIS" | Numeric (integer) | Number of prenatal medical visits |
+| "CIG_REC" | Logical | TRUE if smoker; FALSE otherwise |
+| "GESTREC3" | Categorical | Two categories: <37 weeks (premature) and >= 37 weeks |  
+| "DPLURAL" | Categorical | Birth plurality, three categories: single/twin/triplet+ | 
+| **COMPLICATIONS** |     |     |
+| "ULD_MECO" | Logical | TRUE if moderate/heavy fecal straining of amniotic fluid |
+| "ULD_PRECIP" | Logical | TRUE for unusually short labor (< 3 hrs)
+| "ULD_BREECH" | Logical | TRUE for breech (pelvis first) birth position |
+| **RISK FACTORS** |     |     |
+| "URF_DIAB" | Logical | TRUE if mother is diabetic |
+| "URF_CHYPER" | Logical | TRUE if mother has chronic hypertension |
+| "URF_PHYPER" | Logical | TRUE if mother has pregnncy-related hypertension |
+| "URF_ECLAM" | Logical | TRUE if mother experienced eclampsia; pregnancy related seizures |
+| **OUTCOME** |     |     |
+| "atRisk" | Logical | TRUE if 5-minute Apgar score < 7; FALSE otherwise |
+
+## Generalized Linear Model (`glm`) for Logistic Regression
+
+As we saw in the previous lesson on linear regression, the R function used was `lm()` for linear model with models that:
+
+1. have "additive" effects 
+2. that are assumed to have "linear" association with the outcome of interest 
+3. which is assumed to have a normal distribution. 
+
+Logistic regression has similar assumptions (additive effects and linear association with the outcome), except the outcome of interest is NOT a continuous number with a normal distribution. Instead, the outcome is a category - does the subject have the outcome or not - in this case was the newborn classified as "at risk" or not? So, the logistic regression model is predicting the PROBABILITY that a given birth (observation) was "at risk". 
+
+Without going into all of the math, the logit of the outcome category is computed which is a function of the probability that the outcome of interest is `TRUE` (i.e. baby is "at risk"). The _logit_ is `log(p/(1-p))` where `p` is the probability and `p/(1-p)` is the odds that the outcome is `TRUE`. So, `log(p/(1-p))` is the _log-odds_ of the probability for the outcome you're interested in. So, when running a logistic regression instead of creating a model that predict `y`, a logistic regression model predicts `logit(y)`. The `logit(y)` is what has a linear relationship to the predictors (`x`'s).
+
+The function to fit a logistic regression is `glm` which stands for performing a "general linear model", which basically indicates that we are fitting a model for an outcome that is linearly related to the predictors. The outcome, however, can be in a variety of formats. In the case of logistic regression, the outcome has a binary distribution (2 possible outcomes - usually yes vs no) with a `logit` "link" function.
+
+When using the `glm()` to fit a "General Linear Model", you need to know which "family" of models you will use to model your outcome. In R, the following "family objects" are available for `glm()` modeling (run `help(family)` and `help(glm)`):
+
+```
+binomial(link = "logit")
+gaussian(link = "identity")
+Gamma(link = "inverse")
+inverse.gaussian(link = "1/mu^2")
+poisson(link = "log")
+quasi(link = "identity", variance = "constant")
+quasibinomial(link = "logit")
+quasipoisson(link = "log")
+```
+
+For our example here, we will use the `binomial(link = "logit")` family to perform a logistic regression. It is worth noting, that for "count-based" data (like "number of comorbidities", "number of children", "number of symptoms"), the `poisson(link = "log")` family can be used. `glm.nb()` (from the `MASS` package) which models the "negative binomial" family also works well for count-based outcomes.
+
+## Logistic Regression Model
+
+```{r}
+# define the outcome variable
+y <- "atRisk"
+
+# define the input variable list
+x <- names(sdata[,1:12])
+
+# use the paste() command to put a + in between
+# each of the x variables and put the ~ in between the
+# outcome y and the x variables
+fmla <- paste(y, paste(x, collapse="+"), sep="~")
+```
+
+The final model formula is `r fmla`
+
+This is the formula that we'll use in the `glm()` model function call. The model is created using the `train` data.
+
+```{r}
+model <- glm(fmla, 
+             data=train, 
+             family=binomial(link="logit"))
+```
+
+## Predictions
+
+Now that we've created the model from the `train` data. Let's make predictions using the model and the `train` and the `test` datasets. To learn more about the options, run `help(predict.glm)`. The code chunk below adds `pred` as a new column in both the `train` and `test` datasets.
+
+```{r}
+train$pred <- predict(model, 
+                      newdata=train, 
+                      type="response")
+test$pred <- predict(model, 
+                      newdata=test, 
+                      type="response")
+```
+
+```{r}
+library(ggplot2)
+ggplot(train, 
+       aes(x=pred, color=atRisk, linetype=atRisk)) +
+  geom_density()
+
+library(ROCR)
+library(grid)
+
+predObj <- prediction(train$pred, train$atRisk)
+
+precObj <- performance(predObj, measure="prec")
+recObj <- performance(predObj, measure="rec")
+
+precision <- (precObj@y.values)[[1]]
+prec.x <- (precObj@x.values)[[1]]
+recall <- (recObj@y.values)[[1]]
+
+rocFrame <- data.frame(threshold=prec.x,
+                       precision=precision,
+                       recall=recall)
+
+nplot <- function(plist){
+  n <- length(plist)
+  grid.newpage()
+  pushViewport(viewport(layout=grid.layout(n,1)))
+  vplayout=function(x,y){
+    viewport(layout.pos.row=x, layout.pos.col=y)
+  }
+  for (i in 1:n){
+    print(plist[[i]],
+          vp=vplayout(i,1))
+  }
+}
+
+pnull <- mean(as.numeric(train$atRisk))
+
+p1 <- ggplot(rocFrame, aes(x=threshold)) +
+  geom_line(aes(y=precision/pnull)) +
+  coord_cartesian(xlim=c(0,0.05), ylim=c(0,10))
+
+p2 <- ggplot(rocFrame, aes(x=threshold)) +
+  geom_line(aes(y=recall)) +
+  coord_cartesian(xlim=c(0,0.05))
+
+nplot(list(p1,p2))
+
+```
+
+```{r}
+# test a classifier with a threshold > 0.02
+ctab.test <- table(pred=test$pred>0.02, atRisk=test$atRisk)
+ctab.test
+
+# compute precision = true positives / predicted true
+precision <- ctab.test[2,2]/sum(ctab.test[2,])
+precision
+
+# compute recall = true positives / actual true
+recall <- ctab.test[2,2]/sum(ctab.test[,2])
+recall
+```
+
+This classifier is low-precision with a precision = `r round(precision*100,2)` % and recall of `r round(recall*100,2)` %.
+
+## Model Summary
+
+```{r}
+summary(model)
+
+library(ROCR)
+train$pred <- predict(model, 
+                      newdata=train, 
+                      type="response")
+
+ggplot(train, aes(atRisk, log2(pred))) +
+  geom_boxplot() +
+  geom_hline(yintercept=log2(0.02),
+             col="red", lty=2)
+
+ROCRpred <- prediction(train$pred, train$atRisk)
+ROCRperf <- performance(ROCRpred, 'tpr','fpr')
+plot(ROCRperf, colorize = TRUE, text.adj = c(-0.2,1.7))
+
+library(pROC)
+roccurve <- roc(train$atRisk ~ train$pred)
+plot(roccurve)
+auc(roccurve)
+```
+
+```{r}
+
+#============================================================
+# Rattle timestamp: 2017-02-14 00:00:34 x86_64-w64-mingw32 
+
+# Evaluate model performance. 
+
+# ROC Curve: requires the ROCR package.
+
+#library(ROCR)
+
+# ROC Curve: requires the ggplot2 package.
+
+#library(ggplot2, quietly=TRUE)
+
+# Generate an ROC Curve for the glm model on sdata [validate].
+
+#pr <- predict(model, type="response", newdata=train)
+pr <- train$pred
+train$yn <- as.numeric(train$atRisk)
+
+# Remove observations with missing target.
+
+no.miss   <- na.omit(train$yn)
+miss.list <- attr(no.miss, "na.action")
+attributes(no.miss) <- NULL
+
+if (length(miss.list))
+{
+  pred <- prediction(pr[-miss.list], no.miss)
+} else
+{
+  pred <- prediction(pr, no.miss)
+}
+
+pe <- performance(pred, "tpr", "fpr")
+au <- performance(pred, "auc")@y.values[[1]]
+pd <- data.frame(fpr=unlist(pe@x.values), tpr=unlist(pe@y.values))
+p <- ggplot(pd, aes(x=fpr, y=tpr))
+p <- p + geom_line(colour="red")
+p <- p + xlab("False Positive Rate") + ylab("True Positive Rate")
+p <- p + ggtitle("ROC Curve Linear sdata [validate] yn")
+p <- p + theme(plot.title=element_text(size=10))
+p <- p + geom_line(data=data.frame(), aes(x=c(0,1), y=c(0,1)), colour="grey")
+p <- p + annotate("text", x=0.50, y=0.00, hjust=0, vjust=0, size=5,
+                   label=paste("AUC =", round(au, 4)))
+print(p)
+
+# Calculate the area under the curve for the plot.
+
+
+# Remove observations with missing target.
+
+no.miss   <- na.omit(train$yn)
+miss.list <- attr(no.miss, "na.action")
+attributes(no.miss) <- NULL
+
+if (length(miss.list))
+{
+  pred <- prediction(pr[-miss.list], no.miss)
+} else
+{
+  pred <- prediction(pr, no.miss)
+}
+performance(pred, "auc")@y.values
+```
+
+try different threshold > 0.01
+
+```{r}
+# test a classifier with a threshold > 0.01
+ctab.test <- table(pred=test$pred>0.01, atRisk=test$atRisk)
+ctab.test
+
+# compute precision = true positives / predicted true
+precision <- ctab.test[2,2]/sum(ctab.test[2,])
+precision
+
+# compute recall = true positives / actual true
+recall <- ctab.test[2,2]/sum(ctab.test[,2])
+recall
+```
+
+This classifier is low-precision with a precision = `r round(precision*100,2)` % and recall of `r round(recall*100,2)` %.
+
+try different threshold > 0.03
+
+```{r}
+# test a classifier with a threshold > 0.01
+ctab.test <- table(pred=test$pred>0.03, atRisk=test$atRisk)
+ctab.test
+
+# compute precision = true positives / predicted true
+precision <- ctab.test[2,2]/sum(ctab.test[2,])
+precision
+
+# compute recall = true positives / actual true
+recall <- ctab.test[2,2]/sum(ctab.test[,2])
+recall
+```
+
+This classifier is low-precision with a precision = `r round(precision*100,2)` % and recall of `r round(recall*100,2)` %.
+
