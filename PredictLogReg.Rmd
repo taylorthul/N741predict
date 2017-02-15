@@ -2,7 +2,10 @@
 title: "Prediction & Logistic Regression"
 author: "Melinda K. Higgins, PhD."
 date: "February 13, 2017"
-output: html_document
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -15,7 +18,7 @@ The following code and data analysis example comes from Chapter 7, section 7.2 o
 
 ## Dataset
 
-The dataset we'll use is the "CDC" data available from the book Github repository at [https://github.com/WinVector/zmPDSwR/tree/master/CDC](https://github.com/WinVector/zmPDSwR/tree/master/CDC). We'll use the RData file "NatalRiskData.rData" which has 26313 observations and 15 variables. In this dataset, there is a variable "ORIGRANDGROUP" which has uniformly distributed random numbers ranging from 0 to 10. The code chunk below divides the dataset into a "test" and a "training" dataset based on these random numbers: if <= 0.5, the observation is assigned to the "train" dataset and if > 0.5, the observation is assigned to the "test" dataset.
+The dataset we'll use is the "CDC" data available from the book Github repository at [https://github.com/WinVector/zmPDSwR/tree/master/CDC](https://github.com/WinVector/zmPDSwR/tree/master/CDC). We'll use the RData file "NatalRiskData.rData" which has 26313 observations and 15 variables. In this dataset, there is a variable "ORIGRANDGROUP" which has uniformly distributed random numbers ranging from 0 to 10. The `R` code chunk below divides the dataset into a "test" and a "training" dataset based on these random numbers: if <= 0.5, the observation is assigned to the "train" dataset and if > 0.5, the observation is assigned to the "test" dataset.
 
 ```{r}
 load("NatalRiskData.rData")
@@ -49,15 +52,24 @@ The variables included that we will use in our logistic regression model are pro
 
 As we saw in the previous lesson on linear regression, the R function used was `lm()` for linear model with models that:
 
-1. have "additive" effects 
-2. that are assumed to have "linear" association with the outcome of interest 
-3. which is assumed to have a normal distribution. 
+1. have "additive" effects (`Y = intercept + X1 + X2 + ...`)
+2. are assumed to have "linear" association with the outcome of interest 
+3. have an outcome with a normal distribution. 
 
-Logistic regression has similar assumptions (additive effects and linear association with the outcome), except the outcome of interest is NOT a continuous number with a normal distribution. Instead, the outcome is a category - does the subject have the outcome or not - in this case was the newborn classified as "at risk" or not? So, the logistic regression model is predicting the PROBABILITY that a given birth (observation) was "at risk". 
+Logistic regression has similar assumptions (additive effects and linear association with the outcome), except the outcome of interest is NOT a continuous number with a normal distribution. Instead, the outcome is a category - does the subject have the outcome of interest or not - in this case was the newborn classified as "at risk" or not? So, the logistic regression model is predicting the PROBABILITY that a given birth (observation) was "at risk". 
 
-Without going into all of the math, the logit of the outcome category is computed which is a function of the probability that the outcome of interest is `TRUE` (i.e. baby is "at risk"). The _logit_ is `log(p/(1-p))` where `p` is the probability and `p/(1-p)` is the odds that the outcome is `TRUE`. So, `log(p/(1-p))` is the _log-odds_ of the probability for the outcome you're interested in. So, when running a logistic regression instead of creating a model that predict `y`, a logistic regression model predicts `logit(y)`. The `logit(y)` is what has a linear relationship to the predictors (`x`'s).
+Without going into all of the math, the "logit" is a function of the probability that the outcome of interest is `TRUE` (i.e. baby is "at risk"). The _logit_ is `log(p/(1-p))` where `p` is the probability and `p/(1-p)` is the odds that the outcome is `TRUE`. So, `log(p/(1-p))` is the _log-odds_ of the probability for the outcome you're interested in. So, when running a logistic regression instead of creating a model that predicts `y`, a logistic regression model predicts `logit(y)`. The `logit(y)` is the function of the outcome that is supposed to have a linear relationship to the predictors (`x`'s).
 
-The function to fit a logistic regression is `glm` which stands for performing a "general linear model", which basically indicates that we are fitting a model for an outcome that is linearly related to the predictors. The outcome, however, can be in a variety of formats. In the case of logistic regression, the outcome has a binary distribution (2 possible outcomes - usually yes vs no) with a `logit` "link" function.
+The plot below shows what the `logit(x)` function looks like, where `y = log(x/(1-x))`.
+
+```{r}
+x <- seq(0,1,.01)
+y <- log(x/(1-x))
+plot(x,y,col='blue',type="l",xlab="x = probability",
+     ylab="y = logit(x) = log(x/(1-x))")
+```
+
+The function to fit a logistic regression is `glm` which stands for fitting a "generalized linear model", which basically indicates that we are fitting a model for an outcome that has been "generalized" (through some kind of mathematical function) that "links" the outcome of interest to the predictors such that it is linearly related to the predictors. The outcome, however, can be in a variety of formats. In the case of logistic regression, the outcome has a binary distribution (2 possible outcomes - usually yes vs no) with a `logit` "link" function.
 
 When using the `glm()` to fit a "General Linear Model", you need to know which "family" of models you will use to model your outcome. In R, the following "family objects" are available for `glm()` modeling (run `help(family)` and `help(glm)`):
 
@@ -72,9 +84,13 @@ quasibinomial(link = "logit")
 quasipoisson(link = "log")
 ```
 
+_NOTE: If we use `gaussian(link = "identity")` family with the `glm()` function, we're essentially fitting a "normal" linear regression model._
+
 For our example here, we will use the `binomial(link = "logit")` family to perform a logistic regression. It is worth noting, that for "count-based" data (like "number of comorbidities", "number of children", "number of symptoms"), the `poisson(link = "log")` family can be used. `glm.nb()` (from the `MASS` package) which models the "negative binomial" family also works well for count-based outcomes.
 
 ## Logistic Regression Model
+
+Use the following code chunk to define the predictors (`x`'s) and outcome variable (`y`) for the model. The code below uses the `paste()` command to help manipulate putting the variable names together with `+` additive effects among the `x`'s and adding the `~` tilde for modeling `y` by the `x`'s.
 
 ```{r}
 # define the outcome variable
@@ -89,7 +105,9 @@ x <- names(sdata[,1:12])
 fmla <- paste(y, paste(x, collapse="+"), sep="~")
 ```
 
-The final model formula is `r fmla`
+The final model formula is  `r fmla`
+
+### Develop the model using the training data
 
 This is the formula that we'll use in the `glm()` model function call. The model is created using the `train` data.
 
@@ -99,9 +117,17 @@ model <- glm(fmla,
              family=binomial(link="logit"))
 ```
 
+## Model summary
+
+```{r}
+summary(model)
+```
+
 ## Predictions
 
 Now that we've created the model from the `train` data. Let's make predictions using the model and the `train` and the `test` datasets. To learn more about the options, run `help(predict.glm)`. The code chunk below adds `pred` as a new column in both the `train` and `test` datasets.
+
+_Note: the `predict()` function is a "generic function" that really calls `predict.glm()` since the input object is the output model from the `glm()` function. Run `help(predict)` to learn more._
 
 ```{r}
 train$pred <- predict(model, 
@@ -112,12 +138,48 @@ test$pred <- predict(model,
                       type="response")
 ```
 
+### Plot of Predicted Probabilities - Training Data
+
 ```{r}
 library(ggplot2)
 ggplot(train, 
        aes(x=pred, color=atRisk, linetype=atRisk)) +
-  geom_density()
+  geom_density() +
+  ggtitle("Predicted Probability for At Risk Birth - Training Data")
+```
 
+### Plot of Predicted Probabilities - Test Data
+
+```{r}
+ggplot(test, 
+       aes(x=pred, color=atRisk, linetype=atRisk)) +
+  geom_density() +
+  ggtitle("Predicted Probability for At Risk Birth - Test Data")
+```
+
+## Discrimination Plots - boxplot of probabilities by outcome
+
+Another way to evaluation how well the 2 outcomes were separated is to look at the difference between the average predicted probability between the 2 "classes". We can visualize that using boxplots. Sine the probabilities were so skewed (long tails to right), I took the `log2()` and then made the plot.
+
+```{r}
+# since the densities were so skewed, we'll 
+# plot the log2(pred) by class
+# draw a line for the 0.02 threshold
+ggplot(train, aes(atRisk, log2(pred))) +
+  geom_boxplot() +
+  geom_hline(yintercept=log2(0.02),
+             col="red", lty=2)
+```
+
+### Choosing a "Decision" Threshold
+
+After looking at the plots above, what probability do you think will "best" separate the 2 outcomes ("at risk" versus "not at risk")?
+
+For this dataset, the density of prediction probabilities for both classes are clustered on the left with a lot of overlap (i.e. these classes are hard to separate). This makes sense since "at risk" births are rare - looking back at the original full `sdata` dataset, the % of "at risk" births were really low `sum(sdata$atRisk)*100/length(sdata$atRisk)` = `r sum(sdata$atRisk)*100/length(sdata$atRisk)` %.
+
+In order to use the model as a classifier, we need to choose a threshold probability where `p < threshold` is "false" and `p > threshold` is "true". When choosing a threshold you are trying to balance the _"precision"_ of the classifier (predicted positives that are true positives) with _"recall"_ (how many of the true positives are found). One way to look at the tradeoff between these is to look at the _"enrichment rate"_ which is the ratio of the classifier precision to the average rate of positives. (see pp 161-164 in "Practical Data Science with R"). The code chunk below produces a plot of the _"enrichment rate"_ (TOP) across a range of threshold and the _"recall"_ (BOTTOM) for thr training dataset.
+
+```{r}
 library(ROCR)
 library(grid)
 
@@ -158,8 +220,15 @@ p2 <- ggplot(rocFrame, aes(x=threshold)) +
   coord_cartesian(xlim=c(0,0.05))
 
 nplot(list(p1,p2))
-
 ```
+
+### Pick up a threshold - Review Confusion Matrix
+
+Given the plots above, we want to find a value where the TOP plot ("precision/pnull" enrichment rate is maximized) while ALSO maximizing the BOTTOM plot ("recall"). So, we want to strike a balance between the two.
+
+### Threshold = 0.02
+
+The code below creates the "confusion matrix" which compares the true positives and negatives with those predicted by the model. For this, we use the `test` dataset.
 
 ```{r}
 # test a classifier with a threshold > 0.02
@@ -168,39 +237,74 @@ ctab.test
 
 # compute precision = true positives / predicted true
 precision <- ctab.test[2,2]/sum(ctab.test[2,])
-precision
 
 # compute recall = true positives / actual true
 recall <- ctab.test[2,2]/sum(ctab.test[,2])
-recall
 ```
 
 This classifier is low-precision with a precision = `r round(precision*100,2)` % and recall of `r round(recall*100,2)` %.
 
-## Model Summary
+### Threshold = 0.01
+
+Let's run this again for threshold = 0.01. Setting the threshold lower increased the number of true positives predicted correctly, but we now have a much higher error rate for predicting the falses.
 
 ```{r}
-summary(model)
+# test a classifier with a threshold > 0.01
+ctab.test <- table(pred=test$pred>0.01, atRisk=test$atRisk)
+ctab.test
 
+# compute precision = true positives / predicted true
+precision <- ctab.test[2,2]/sum(ctab.test[2,])
+
+# compute recall = true positives / actual true
+recall <- ctab.test[2,2]/sum(ctab.test[,2])
+```
+
+This classifier is low-precision with a precision = `r round(precision*100,2)` % and recall of `r round(recall*100,2)` %. So, the _recall_ is higher, but _precision_ is lower.
+
+### Threshold = 0.03
+
+Let's run this again for threshold = 0.03. Now, we've done a better job predicting the falses but did much worse predicting the true "at risk" births.
+
+```{r}
+# test a classifier with a threshold > 0.03
+ctab.test <- table(pred=test$pred>0.03, atRisk=test$atRisk)
+ctab.test
+
+# compute precision = true positives / predicted true
+precision <- ctab.test[2,2]/sum(ctab.test[2,])
+
+# compute recall = true positives / actual true
+recall <- ctab.test[2,2]/sum(ctab.test[,2])
+```
+
+This classifier is low-precision with a precision = `r round(precision*100,2)` % and recall of `r round(recall*100,2)` %. Now _precision_ is higher, but _recall_ is now lower.
+
+## The "Concordance" or "C"-statistic (e.g. AUC for the ROC)
+
+The "concordance" or "c"-statistic is the "area under the curve" for the receiver operating curve (ROC). This curve is a plot of the tradeoffs between the false positive rate and true positive rate across a range of threshold probabilities. For this we'll use the `ROCR` package.
+
+```{r}
 library(ROCR)
-train$pred <- predict(model, 
-                      newdata=train, 
-                      type="response")
-
-ggplot(train, aes(atRisk, log2(pred))) +
-  geom_boxplot() +
-  geom_hline(yintercept=log2(0.02),
-             col="red", lty=2)
-
 ROCRpred <- prediction(train$pred, train$atRisk)
 ROCRperf <- performance(ROCRpred, 'tpr','fpr')
-plot(ROCRperf, colorize = TRUE, text.adj = c(-0.2,1.7))
+plot(ROCRperf)
+abline(0,1)
+```
+
+Another option is to plot the Sensitivity versus the Specificity, which can be done using the `pROC` package. This package also computes the AUC or "c"-statistic. _NOTE: A "perfect" AUC = 1 whereas AUC=0.5 indicates the model predictions are 50/50 - not better than flipping a coin. So, we want the AUC > 0.5 and as close to 1 as possible._
+
+```{r}
 
 library(pROC)
 roccurve <- roc(train$atRisk ~ train$pred)
 plot(roccurve)
+
+# pull out just the AUC statistic
 auc(roccurve)
 ```
+
+Finally, the code below is a 3rd option for making these plots based on the code generated by the `rattle` package.
 
 ```{r}
 
@@ -268,40 +372,3 @@ if (length(miss.list))
 }
 performance(pred, "auc")@y.values
 ```
-
-try different threshold > 0.01
-
-```{r}
-# test a classifier with a threshold > 0.01
-ctab.test <- table(pred=test$pred>0.01, atRisk=test$atRisk)
-ctab.test
-
-# compute precision = true positives / predicted true
-precision <- ctab.test[2,2]/sum(ctab.test[2,])
-precision
-
-# compute recall = true positives / actual true
-recall <- ctab.test[2,2]/sum(ctab.test[,2])
-recall
-```
-
-This classifier is low-precision with a precision = `r round(precision*100,2)` % and recall of `r round(recall*100,2)` %.
-
-try different threshold > 0.03
-
-```{r}
-# test a classifier with a threshold > 0.01
-ctab.test <- table(pred=test$pred>0.03, atRisk=test$atRisk)
-ctab.test
-
-# compute precision = true positives / predicted true
-precision <- ctab.test[2,2]/sum(ctab.test[2,])
-precision
-
-# compute recall = true positives / actual true
-recall <- ctab.test[2,2]/sum(ctab.test[,2])
-recall
-```
-
-This classifier is low-precision with a precision = `r round(precision*100,2)` % and recall of `r round(recall*100,2)` %.
-
