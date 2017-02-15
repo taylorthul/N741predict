@@ -75,10 +75,10 @@ When using the `glm()` to fit a "General Linear Model", you need to know which "
 
 ```
 binomial(link = "logit")
-gaussian(link = "identity")
+gaussian(link = "identity") #this is normal linear regression 
 Gamma(link = "inverse")
 inverse.gaussian(link = "1/mu^2")
-poisson(link = "log")
+poisson(link = "log") #this is useful for count data
 quasi(link = "identity", variance = "constant")
 quasibinomial(link = "logit")
 quasipoisson(link = "log")
@@ -102,6 +102,7 @@ x <- names(sdata[,1:12])
 # use the paste() command to put a + in between
 # each of the x variables and put the ~ in between the
 # outcome y and the x variables
+#fmla means formula
 fmla <- paste(y, paste(x, collapse="+"), sep="~")
 ```
 
@@ -121,6 +122,7 @@ model <- glm(fmla,
 
 ```{r}
 summary(model)
+#the estimate output of this is odds ratios, for example a baby <37 weeks is 1.5 times more likely to be at risk 
 ```
 
 ## Predictions
@@ -130,6 +132,7 @@ Now that we've created the model from the `train` data. Let's make predictions u
 _Note: the `predict()` function is a "generic function" that really calls `predict.glm()` since the input object is the output model from the `glm()` function. Run `help(predict)` to learn more._
 
 ```{r}
+
 train$pred <- predict(model, 
                       newdata=train, 
                       type="response")
@@ -290,6 +293,8 @@ ROCRpred <- prediction(train$pred, train$atRisk)
 ROCRperf <- performance(ROCRpred, 'tpr','fpr')
 plot(ROCRperf)
 abline(0,1)
+#ideally want it to be above the line, and the AUC is what we are caluclating
+#if it was a perfect square the AUC would be one, ideally 0.7 or higher 
 ```
 
 Another option is to plot the Sensitivity versus the Specificity, which can be done using the `pROC` package. This package also computes the AUC or "c"-statistic. _NOTE: A "perfect" AUC = 1 whereas AUC=0.5 indicates the model predictions are 50/50 - not better than flipping a coin. So, we want the AUC > 0.5 and as close to 1 as possible._
@@ -301,6 +306,8 @@ roccurve <- roc(train$atRisk ~ train$pred)
 plot(roccurve)
 
 # pull out just the AUC statistic
+#this is the C statistic 
+#wherever the tangest line is, the corrosponding coordinates are the best trade off, it is the absoluley greatest distance ang greatest AUC 
 auc(roccurve)
 ```
 
